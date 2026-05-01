@@ -2,11 +2,29 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Snake</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { height: 100%; }
+
+/* ── Mobile layout ───────────────────────────────────────────── */
+@media (max-width: 600px) {
+  html, body { height: auto; min-height: 100svh; }
+  body { flex-direction: column; overflow-y: auto; overflow-x: hidden; }
+  #game-container { padding: 10px 10px 0; gap: 8px; width: 100%; }
+  #hud { flex-wrap: wrap; justify-content: center; height: auto; gap: 10px; }
+  #hunger-track { width: 110px; }
+  #canvas-wrap { transform-origin: top center; flex-shrink: 0; align-self: center; }
+  #sidebar {
+    width: 100%; min-width: unset;
+    border-left: none; border-top: 1px solid #1a1a2e;
+    padding: 16px 14px 32px;
+  }
+  .sel-btn  { padding: 10px 4px; font-size: 0.8rem; }
+  .theme-swatch { padding: 11px 4px; }
+  .t-minimal #sidebar { border-top-color: #ddd; }
+}
 
 body {
   background: #0a0a0f;
@@ -1298,6 +1316,49 @@ G.colors={...THEME_COLORS.neon};
 buildBgTexture();
 buildStars();
 render(1);
+
+// ── Mobile / Touch ────────────────────────────────────────────
+function fitCanvas() {
+  const vw = window.innerWidth;
+  if(vw < 540) {
+    const scale = (vw - 16) / 500;
+    canvasWrap.style.transform     = `scale(${scale.toFixed(4)})`;
+    canvasWrap.style.marginBottom  = `${Math.round(500 * (scale - 1))}px`;
+  } else {
+    canvasWrap.style.transform    = '';
+    canvasWrap.style.marginBottom = '';
+  }
+}
+window.addEventListener('resize', fitCanvas);
+fitCanvas();
+
+if('ontouchstart' in window) {
+  document.getElementById('overlay-sub').textContent = 'Swipe to move · Tap canvas to pause';
+}
+
+let _tx0 = 0, _ty0 = 0;
+canvasWrap.addEventListener('touchstart', e => {
+  _tx0 = e.touches[0].clientX;
+  _ty0 = e.touches[0].clientY;
+  e.preventDefault();
+}, {passive: false});
+
+canvasWrap.addEventListener('touchmove', e => e.preventDefault(), {passive: false});
+
+canvasWrap.addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - _tx0;
+  const dy = e.changedTouches[0].clientY - _ty0;
+  if(Math.abs(dx) < 12 && Math.abs(dy) < 12) {
+    if(G.running) { G.paused = !G.paused; if(!G.paused) G.lastTick = performance.now(); }
+    return;
+  }
+  if(Math.abs(dx) < 15 && Math.abs(dy) < 15) return;
+  const d = Math.abs(dx) > Math.abs(dy)
+    ? (dx > 0 ? {x:1,y:0} : {x:-1,y:0})
+    : (dy > 0 ? {x:0,y:1} : {x:0,y:-1});
+  if(d.x !== -G.dir.x || d.y !== -G.dir.y) G.nextDir = d;
+  e.preventDefault();
+}, {passive: false});
 </script>
 </body>
 </html>
