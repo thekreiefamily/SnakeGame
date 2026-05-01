@@ -1337,15 +1337,15 @@ if('ontouchstart' in window) {
 }
 
 let _tx0 = 0, _ty0 = 0;
-canvasWrap.addEventListener('touchstart', e => {
+canvas.addEventListener('touchstart', e => {
   _tx0 = e.touches[0].clientX;
   _ty0 = e.touches[0].clientY;
   e.preventDefault();
 }, {passive: false});
 
-canvasWrap.addEventListener('touchmove', e => e.preventDefault(), {passive: false});
+canvas.addEventListener('touchmove', e => e.preventDefault(), {passive: false});
 
-canvasWrap.addEventListener('touchend', e => {
+canvas.addEventListener('touchend', e => {
   const dx = e.changedTouches[0].clientX - _tx0;
   const dy = e.changedTouches[0].clientY - _ty0;
   if(Math.abs(dx) < 12 && Math.abs(dy) < 12) {
