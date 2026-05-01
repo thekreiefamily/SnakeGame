@@ -1,0 +1,1303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Snake</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+
+body {
+  background: #0a0a0f;
+  color: #e0e0e0;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  user-select: none;
+  --accent: #4ade80;
+}
+
+#game-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+#hud {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  height: 44px;
+}
+#score-display { font-size: 1.3rem; font-weight: 700; letter-spacing: 3px; }
+
+#hunger-wrap { display: none; flex-direction: column; gap: 4px; }
+.hud-label { font-size: 0.58rem; letter-spacing: 2px; text-transform: uppercase; opacity: 0.45; }
+#hunger-track { width: 160px; height: 9px; background: rgba(255,255,255,0.08); border-radius: 5px; overflow: hidden; }
+#hunger-fill { height: 100%; width: 100%; border-radius: 5px; background: var(--accent); transition: background 0.3s; }
+
+#health-wrap { display: none; align-items: center; gap: 6px; }
+.heart { font-size: 1.15rem; line-height: 1; }
+
+#timer-wrap { display: none; flex-direction: column; align-items: center; gap: 2px; }
+#timer-val { font-size: 1.25rem; font-weight: 700; letter-spacing: 2px; }
+
+#canvas-wrap {
+  position: relative;
+  line-height: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 0 50px rgba(74,222,128,0.08), 0 0 0 1px rgba(255,255,255,0.05);
+}
+#gameCanvas { display: block; }
+
+#vision-overlay {
+  position: absolute; inset: 0;
+  pointer-events: none; opacity: 0;
+  background: radial-gradient(ellipse at center, rgba(0,20,0,0.1) 15%, rgba(0,40,0,0.95) 100%);
+}
+
+#game-overlay {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 12px;
+  background: rgba(0,0,0,0.78);
+  backdrop-filter: blur(6px);
+}
+#overlay-title { font-size: 2.4rem; font-weight: 900; letter-spacing: 7px; color: var(--accent); }
+#death-msg {
+  font-size: 1.05rem; letter-spacing: 0.5px;
+  color: rgba(255,255,255,0.9); font-style: italic;
+  display: none; text-align: center; padding: 0 24px;
+  margin-top: 14px;
+}
+#overlay-score { font-size: 1.1rem; font-weight: 600; opacity: 0.8; display: none; letter-spacing: 2px; }
+#start-btn {
+  margin-top: 4px; padding: 11px 40px;
+  background: var(--accent); color: #000;
+  border: none; border-radius: 7px;
+  font-size: 0.9rem; font-weight: 800; letter-spacing: 2px;
+  cursor: pointer; transition: all 0.12s;
+}
+#start-btn:hover { filter: brightness(1.15); transform: scale(1.04); }
+#overlay-sub { font-size: 0.68rem; opacity: 0.35; letter-spacing: 1px; }
+
+/* ── Sidebar ─────────────────────────────────── */
+#sidebar {
+  width: 268px; min-width: 268px;
+  background: #0d0d15;
+  border-left: 1px solid #1a1a2e;
+  padding: 22px 18px;
+  overflow-y: auto;
+  display: flex; flex-direction: column; gap: 20px;
+}
+#sidebar-title { font-size: 1.4rem; font-weight: 900; letter-spacing: 6px; color: var(--accent); }
+.panel-section { display: flex; flex-direction: column; gap: 9px; }
+.section-label { font-size: 0.58rem; letter-spacing: 2px; text-transform: uppercase; opacity: 0.4; }
+
+.btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.btn-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; }
+
+.sel-btn {
+  padding: 8px 4px;
+  border: 1px solid #222238; background: transparent; color: inherit;
+  border-radius: 6px; cursor: pointer;
+  font-size: 0.77rem; font-weight: 600; letter-spacing: 0.4px;
+  transition: all 0.12s;
+}
+.sel-btn:hover { border-color: var(--accent); color: var(--accent); }
+.sel-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+
+.mode-hint { font-size: 0.7rem; opacity: 0.42; line-height: 1.55; min-height: 34px; }
+
+.theme-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; }
+.theme-swatch {
+  padding: 9px 4px;
+  border: 2px solid transparent; border-radius: 7px;
+  cursor: pointer; font-size: 0.7rem; font-weight: 700;
+  letter-spacing: 0.5px; text-align: center; transition: border-color 0.15s;
+}
+.theme-swatch.active { border-color: var(--accent) !important; }
+
+.color-row { display: flex; align-items: center; gap: 10px; }
+.color-row label { flex: 1; font-size: 0.77rem; opacity: 0.72; }
+.color-row input[type=color] {
+  width: 34px; height: 26px; padding: 1px 2px;
+  border: 1px solid #333; border-radius: 4px;
+  background: none; cursor: pointer;
+}
+
+.toggle-row { display: flex; align-items: center; gap: 10px; }
+.toggle-row label { flex: 1; font-size: 0.77rem; opacity: 0.72; cursor: pointer; }
+.toggle-row input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+
+/* ── Themes ──────────────────────────────────── */
+.t-retro          { background: #030c03 !important; --accent: #00ff41; }
+.t-retro #sidebar { background: #030c03; border-left-color: #082008; }
+
+.t-minimal          { background: #efefef !important; color: #111 !important; --accent: #111; }
+.t-minimal #sidebar { background: #fafafa; border-left-color: #ddd; color: #111; }
+.t-minimal .sel-btn { border-color: #ccc; color: #333; }
+.t-minimal .sel-btn:hover { border-color: #111; color: #111; }
+.t-minimal .sel-btn.active { background: #111; color: #fff; border-color: #111; }
+.t-minimal #start-btn { background: #111; color: #fff; }
+.t-minimal #start-btn:hover { background: #333; filter: none; }
+.t-minimal #overlay-title { color: #111; }
+.t-minimal #game-overlay { background: rgba(239,239,239,0.88); }
+.t-minimal #death-msg, .t-minimal #overlay-score, .t-minimal #overlay-sub { color: #333; }
+
+.t-cyberpunk          { background: #08001a !important; --accent: #00ffff; }
+.t-cyberpunk #sidebar { background: #08001a; border-left-color: #200040; color: #c0c0ff; }
+.t-cyberpunk #sidebar-title { color: #00ffff; }
+
+.t-ocean          { background: #011826 !important; --accent: #22d3ee; }
+.t-ocean #sidebar { background: #011826; border-left-color: #072a40; }
+
+.t-lava          { background: #180400 !important; --accent: #f97316; }
+.t-lava #sidebar { background: #180400; border-left-color: #3a0c00; }
+
+.t-cave          { background: #0d0803 !important; --accent: #d97706; }
+.t-cave #sidebar { background: #0d0803; border-left-color: #2a1205; }
+
+.t-space          { background: #02000f !important; --accent: #a855f7; }
+.t-space #sidebar { background: #02000f; border-left-color: #0d0030; color: #c4b5fd; }
+.t-space #sidebar-title { color: #a855f7; }
+
+.fruit-count-row { display:flex; align-items:center; gap:10px; }
+.fruit-count-row input[type=range] { flex:1; accent-color:var(--accent); cursor:pointer; }
+.fruit-count-val { font-size:0.85rem; font-weight:700; min-width:14px; text-align:right; }
+
+@keyframes shake {
+  0%,100% { transform: translate(0,0) rotate(0deg); }
+  15%  { transform: translate(-5px, 2px) rotate(-0.5deg); }
+  30%  { transform: translate(5px, -3px) rotate(0.5deg); }
+  45%  { transform: translate(-4px, 4px) rotate(-0.3deg); }
+  60%  { transform: translate(4px, -2px) rotate(0.3deg); }
+  75%  { transform: translate(-2px, 3px) rotate(-0.2deg); }
+}
+.shake { animation: shake 0.4s ease; }
+</style>
+</head>
+<body>
+
+<div id="game-container">
+  <div id="hud">
+    <div id="score-display">SCORE: 0</div>
+    <div id="hunger-wrap">
+      <span class="hud-label">Hunger</span>
+      <div id="hunger-track"><div id="hunger-fill"></div></div>
+    </div>
+    <div id="health-wrap"><!-- hearts injected --></div>
+    <div id="timer-wrap">
+      <span class="hud-label">Time</span>
+      <span id="timer-val">60s</span>
+    </div>
+  </div>
+
+  <div id="canvas-wrap">
+    <canvas id="gameCanvas" width="500" height="500"></canvas>
+    <div id="vision-overlay"></div>
+    <div id="game-overlay">
+      <div id="overlay-title">SNAKE</div>
+      <div id="death-msg"></div>
+      <div id="overlay-score"></div>
+      <button id="start-btn">START</button>
+      <div id="overlay-sub">Arrow keys or WASD · Space to pause</div>
+    </div>
+  </div>
+</div>
+
+<div id="sidebar">
+  <div id="sidebar-title">SNAKE</div>
+
+  <div class="panel-section">
+    <div class="section-label">Game Mode</div>
+    <div class="btn-grid">
+      <button class="sel-btn active" data-mode="classic">Classic</button>
+      <button class="sel-btn" data-mode="hunger">Hunger</button>
+      <button class="sel-btn" data-mode="rotten">Rotten</button>
+      <button class="sel-btn" data-mode="hallucination">Hallucination</button>
+      <button class="sel-btn" data-mode="ghost">Ghost</button>
+      <button class="sel-btn" data-mode="time">Time Attack</button>
+      <button class="sel-btn" data-mode="hotdog">Hotdog</button>
+      <button class="sel-btn" data-mode="doppelganger">Doppelgänger</button>
+    </div>
+    <div class="mode-hint" id="mode-hint">Classic snake. Eat food, avoid walls and yourself.</div>
+  </div>
+
+  <div class="panel-section">
+    <div class="section-label">Map</div>
+    <div class="btn-grid">
+      <button class="sel-btn active" data-map="open">Open</button>
+      <button class="sel-btn" data-map="walled">Walled</button>
+      <button class="sel-btn" data-map="maze">Maze</button>
+      <button class="sel-btn" data-map="portal">Portal</button>
+    </div>
+  </div>
+
+  <div class="panel-section">
+    <div class="section-label">Map Size</div>
+    <div class="btn-grid-3">
+      <button class="sel-btn" data-size="small">Small</button>
+      <button class="sel-btn active" data-size="medium">Medium</button>
+      <button class="sel-btn" data-size="large">Large</button>
+    </div>
+  </div>
+
+  <div class="panel-section">
+    <div class="section-label">Speed</div>
+    <div class="btn-grid">
+      <button class="sel-btn" data-spd="slow">Slow</button>
+      <button class="sel-btn active" data-spd="normal">Normal</button>
+      <button class="sel-btn" data-spd="fast">Fast</button>
+      <button class="sel-btn" data-spd="vfast">Very Fast</button>
+    </div>
+  </div>
+
+  <div class="panel-section">
+    <div class="section-label">Fruit Count</div>
+    <div class="fruit-count-row">
+      <input type="range" id="fruit-count" min="1" max="10" value="1" step="1">
+      <span class="fruit-count-val" id="fruit-count-val">1</span>
+    </div>
+  </div>
+
+  <div class="panel-section">
+    <div class="section-label">Theme</div>
+    <div class="theme-grid">
+      <div class="theme-swatch active" data-theme="neon"
+           style="background:#0a0a0f;color:#4ade80;border-color:#4ade80;">Neon</div>
+      <div class="theme-swatch" data-theme="retro"
+           style="background:#030c03;color:#00ff41;">Retro</div>
+      <div class="theme-swatch" data-theme="minimal"
+           style="background:#efefef;color:#111;border-color:#ccc;">Minimal</div>
+      <div class="theme-swatch" data-theme="cyberpunk"
+           style="background:#08001a;color:#00ffff;">Cyber</div>
+      <div class="theme-swatch" data-theme="ocean"
+           style="background:#011826;color:#22d3ee;">Ocean</div>
+      <div class="theme-swatch" data-theme="lava"
+           style="background:#180400;color:#f97316;">Lava</div>
+      <div class="theme-swatch" data-theme="cave"
+           style="background:#0d0803;color:#d97706;">Cave</div>
+      <div class="theme-swatch" data-theme="space"
+           style="background:#02000f;color:#a855f7;">Space</div>
+    </div>
+  </div>
+
+  <div class="panel-section">
+    <div class="section-label">Colors</div>
+    <div class="color-row">
+      <label for="c-snake">Snake body</label>
+      <input type="color" id="c-snake" value="#4ade80">
+    </div>
+    <div class="color-row">
+      <label for="c-head">Snake head</label>
+      <input type="color" id="c-head" value="#86efac">
+    </div>
+    <div class="color-row">
+      <label for="c-food">Food</label>
+      <input type="color" id="c-food" value="#f87171">
+    </div>
+    <div class="color-row">
+      <label for="c-bg">Background</label>
+      <input type="color" id="c-bg" value="#111118">
+    </div>
+  </div>
+
+  <div class="panel-section">
+    <div class="section-label">Options</div>
+    <div class="toggle-row">
+      <label for="opt-grid">Show grid</label>
+      <input type="checkbox" id="opt-grid">
+    </div>
+    <div class="toggle-row">
+      <label for="opt-smooth">Smooth movement</label>
+      <input type="checkbox" id="opt-smooth" checked>
+    </div>
+    <div class="toggle-row">
+      <label for="opt-music">Music</label>
+      <input type="checkbox" id="opt-music" checked>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ── Grid dimensions (set per game) ───────────────────────────
+let COLS = 25, ROWS = 25, CELL = 20;
+const CANVAS_PX = 500;
+
+const SIZE_DEFS = {
+  small:  { cols: 20, rows: 20, cell: 25 },
+  medium: { cols: 25, rows: 25, cell: 20 },
+  large:  { cols: 50, rows: 50, cell: 10 },
+};
+
+const BASE_SPEED      = 140;
+const SPEED_DEFS      = { slow: 220, normal: 140, fast: 75, vfast: 40 };
+const WIN_SCORES      = { small: 20, medium: 50, large: 80 };
+const HUNGER_DURATION = 6500;
+const TIME_LIMIT      = 60;
+const MAX_HEALTH      = 3;
+const ROTTEN_COUNT    = 2;
+const POISON_DURATION = 7000;
+
+const MODE_HINTS = {
+  classic:      'Classic snake. Eat food, avoid walls and yourself.',
+  hunger:       'Eat food before the hunger bar empties — it refills each time you eat.',
+  rotten:       'Rotten food (brown ✕) drains health and clouds your vision.',
+  hallucination: 'Two fruits appear — one real, one fake. They look identical. Eat the real one to score; eat the fake one and both reset. Pure 50/50.',
+  ghost:        'The food is nearly invisible. Find it by memory and instinct.',
+  time:         `${TIME_LIMIT} seconds. Score as many points as you can!`,
+  hotdog:       'Walls hug your body and move with you. Only the path ahead is open.',
+  doppelganger: 'An AI snake mirrors your length. It grows when you grow — don\'t touch it.',
+};
+
+// ── Death / win messages ─────────────────────────────────────
+const DEATHS = {
+  wall:        ['Face first into a wall.', 'The wall didn\'t move. You did.', 'Hard stop.'],
+  self:        ['You ate yourself.', 'Consumed by your own tail.', 'Ouroboros: unlocked.', 'Self-destructed.'],
+  obstacle:    ['The maze claims another.', 'You walked straight into a block.', 'Architecture wins.'],
+  hotdog:      ['Your own cage closed in.', 'Trapped by your own body.', 'The buns got you.'],
+  hunger:      ['Starved to death.', 'Withered away to nothing.', 'Your belly had the last laugh.'],
+  poisoned:    ['The rot consumed you.', 'Fully corrupted.', 'You went completely rotten.'],
+  time:        ['Out of time.', 'The clock wins.', 'Not fast enough.'],
+  doppelganger:['Caught by your own shadow.', 'The reflection wins.', 'Your double got you.'],
+  doppleWin:   ['Your double had nowhere left to run.', 'You cornered your own shadow.', 'The doppelgänger is trapped.'],
+  win:         ['The map is yours.', 'Fully fed. Fully victorious.', 'The snake ascends.', 'Maximum appetite achieved.'],
+  default:     ['And so it ends.', 'Better luck next time.', 'The snake rests.'],
+};
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+const THEME_COLORS = {
+  neon:      { snake:'#4ade80', head:'#86efac', food:'#f87171', bg:'#111118' },
+  retro:     { snake:'#00cc33', head:'#00ff41', food:'#00ff41', bg:'#040c04' },
+  minimal:   { snake:'#333333', head:'#111111', food:'#e11d48', bg:'#f0f0f0' },
+  cyberpunk: { snake:'#00ffff', head:'#80ffff', food:'#ff00ff', bg:'#0a0020' },
+  ocean:     { snake:'#22d3ee', head:'#67e8f9', food:'#fb923c', bg:'#021b2e' },
+  lava:      { snake:'#f97316', head:'#fdba74', food:'#fbbf24', bg:'#1a0500' },
+  cave:      { snake:'#7c5230', head:'#b87c4a', food:'#fbbf24', bg:'#0d0803' },
+  space:     { snake:'#7c3aed', head:'#c084fc', food:'#fde68a', bg:'#02000f' },
+};
+
+// ── Music definitions ─────────────────────────────────────────
+const N = {
+  A2:110.00,
+  C3:130.81, D3:146.83, E3:164.81, F3:174.61, G3:196.00, Ab3:207.65, A3:220.00, Bb3:233.08, B3:246.94,
+  C4:261.63, D4:293.66, Eb4:311.13, E4:329.63, F4:349.23, G4:392.00, Ab4:415.30, A4:440.00, Bb4:466.16, B4:493.88,
+  C5:523.25, D5:587.33, Eb5:622.25, E5:659.25, F5:698.46, Gb5:739.99, G5:783.99, Ab5:830.61, A5:880.00, Bb5:932.33,
+  R:0,
+};
+const MUSIC_DEFS = {
+  neon:      { bpm:138, lT:'square',   bT:'sawtooth', lV:.12, bV:.08,
+    lead:[[N.A4,.5],[N.C5,.5],[N.E5,1],[N.G5,.5],[N.A5,.5],[N.G5,1],[N.E5,.5],[N.D5,.5],[N.C5,2],[N.R,1]],
+    bass:[[N.A3,1],[N.E3,1],[N.A3,1],[N.G3,1],[N.A3,1],[N.E3,1],[N.A3,1],[N.G3,1]] },
+  retro:     { bpm:124, lT:'square',   bT:'square',   lV:.12, bV:.08,
+    lead:[[N.C5,.5],[N.E5,.5],[N.G5,1],[N.E5,.5],[N.C5,.5],[N.D5,1],[N.E5,.5],[N.D5,.5],[N.C5,2],[N.R,1]],
+    bass:[[N.C3,.5],[N.G3,.5],[N.C3,.5],[N.G3,.5],[N.F3,.5],[N.G3,.5],[N.C3,.5],[N.G3,.5]] },
+  minimal:   { bpm:58,  lT:'sine',     bT:'sine',     lV:.10, bV:.06,
+    lead:[[N.C5,2],[N.E5,2],[N.G5,2],[N.R,2],[N.A5,2],[N.G5,2],[N.E5,2],[N.C5,4]],
+    bass:[[N.C3,4],[N.G3,4],[N.F3,4],[N.G3,4]] },
+  cyberpunk: { bpm:120, lT:'sawtooth', bT:'sawtooth', lV:.11, bV:.09,
+    lead:[[N.D5,.5],[N.R,.25],[N.D5,.25],[N.Eb5,.5],[N.D5,.5],[N.C5,1],[N.Bb4,.5],[N.A4,2],[N.G4,.5],[N.Bb4,.5],[N.A4,1],[N.G4,2],[N.R,1]],
+    bass:[[N.D3,.5],[N.R,.5],[N.D3,.5],[N.A3,.5],[N.D3,.5],[N.R,.5],[N.Bb3,.5],[N.A3,.5]] },
+  ocean:     { bpm:78,  lT:'sine',     bT:'triangle', lV:.10, bV:.07,
+    lead:[[N.G5,1],[N.E5,1],[N.C5,1],[N.D5,1],[N.E5,2],[N.R,1],[N.D5,1],[N.C5,2],[N.R,2]],
+    bass:[[N.C3,3],[N.G3,3],[N.F3,3],[N.G3,3]] },
+  lava:      { bpm:156, lT:'sawtooth', bT:'sawtooth', lV:.12, bV:.09,
+    lead:[[N.E5,.5],[N.E5,.5],[N.G5,1],[N.E5,.5],[N.D5,.5],[N.B4,1.5],[N.R,.5],[N.D5,.5],[N.E5,.5],[N.G5,1],[N.E5,2]],
+    bass:[[N.E3,.5],[N.R,.5],[N.E3,.5],[N.B3,.5],[N.E3,.5],[N.R,.5],[N.G3,.5],[N.E3,.5]] },
+  cave:      { bpm:68,  lT:'triangle', bT:'triangle', lV:.11, bV:.08,
+    lead:[[N.A4,1.5],[N.R,.5],[N.G4,1],[N.F4,1],[N.E4,2],[N.R,1.5],[N.C5,.5],[N.B4,1],[N.A4,2],[N.R,2]],
+    bass:[[N.A2,2],[N.R,1],[N.E3,2],[N.R,1],[N.A2,2],[N.R,1]] },
+  space:     { bpm:48,  lT:'sine',     bT:'sine',     lV:.10, bV:.07,
+    lead:[[N.C5,2],[N.E5,2],[N.Ab5,3],[N.R,1],[N.Bb5,2],[N.Ab5,2],[N.Gb5,2],[N.E5,2],[N.R,2]],
+    bass:[[N.C3,4],[N.R,2],[N.Ab3,4],[N.Gb3,4],[N.R,2]] },
+};
+
+// ── State ────────────────────────────────────────────────────
+const G = {
+  running: false, paused: false, _dead: false,
+  snake: [], prevSnake: [],
+  dir: {x:1,y:0}, nextDir: {x:1,y:0},
+  food: null,
+  rottenFoods: [],
+  obstacles: [],
+  score: 0,
+  mode: 'classic',
+  map: 'open',
+  size: 'medium',
+  health: MAX_HEALTH,
+  hungerT: 1, hungerStart: 0,
+  timeStart: 0, timeLeft: TIME_LIMIT,
+  poisonLevel: 0, poisonExpiry: 0,
+  speed: BASE_SPEED,
+  lastTick: 0, interpT: 0,
+  animFrame: null,
+  fakeFood: null,
+  extraFoods: [],
+  // doppelganger
+  dopple: [], prevDopple: [],
+  doppleDir: {x:-1,y:0},
+  doppleGrow: 0,
+  // hotdog
+  hotdogWalls: new Set(),
+  // style
+  colors: { snake:'#4ade80', head:'#86efac', food:'#f87171', bg:'#111118' },
+  showGrid: false, smooth: true,
+};
+
+// ── DOM ──────────────────────────────────────────────────────
+const canvas     = document.getElementById('gameCanvas');
+const ctx        = canvas.getContext('2d');
+const overlay    = document.getElementById('game-overlay');
+const ovTitle    = document.getElementById('overlay-title');
+const deathMsg   = document.getElementById('death-msg');
+const ovScore    = document.getElementById('overlay-score');
+const startBtn   = document.getElementById('start-btn');
+const scoreEl    = document.getElementById('score-display');
+const hungerWrap = document.getElementById('hunger-wrap');
+const hungerFill = document.getElementById('hunger-fill');
+const healthWrap = document.getElementById('health-wrap');
+const timerWrap  = document.getElementById('timer-wrap');
+const timerVal   = document.getElementById('timer-val');
+const visionOv   = document.getElementById('vision-overlay');
+const canvasWrap = document.getElementById('canvas-wrap');
+const modeHint   = document.getElementById('mode-hint');
+
+// ── Helpers ──────────────────────────────────────────────────
+function hexToRgb(h) {
+  return { r:parseInt(h.slice(1,3),16), g:parseInt(h.slice(3,5),16), b:parseInt(h.slice(5,7),16) };
+}
+function roundRect(c,x,y,w,h,r) {
+  c.beginPath();
+  c.moveTo(x+r,y); c.lineTo(x+w-r,y); c.quadraticCurveTo(x+w,y,x+w,y+r);
+  c.lineTo(x+w,y+h-r); c.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  c.lineTo(x+r,y+h); c.quadraticCurveTo(x,y+h,x,y+h-r);
+  c.lineTo(x,y+r); c.quadraticCurveTo(x,y,x+r,y);
+  c.closePath();
+}
+function lerp(a,b,t){ return a+(b-a)*t; }
+
+// ── Map builders ─────────────────────────────────────────────
+function buildMaze() {
+  // Four solid corner blocks with a guaranteed clear center for spawn.
+  // Blocks occupy ~14–36% and 64–86% of each axis.
+  const cells = new Set();
+  const bx1s=Math.round(COLS*0.14), bx1e=Math.round(COLS*0.36);
+  const bx2s=Math.round(COLS*0.64), bx2e=Math.round(COLS*0.86);
+  const by1s=Math.round(ROWS*0.14), by1e=Math.round(ROWS*0.36);
+  const by2s=Math.round(ROWS*0.64), by2e=Math.round(ROWS*0.86);
+  const safe=(x,y)=>x>0&&x<COLS-1&&y>0&&y<ROWS-1;
+  for(let x=bx1s;x<=bx1e;x++) for(let y=by1s;y<=by1e;y++) if(safe(x,y)) cells.add(`${x},${y}`);
+  for(let x=bx2s;x<=bx2e;x++) for(let y=by1s;y<=by1e;y++) if(safe(x,y)) cells.add(`${x},${y}`);
+  for(let x=bx1s;x<=bx1e;x++) for(let y=by2s;y<=by2e;y++) if(safe(x,y)) cells.add(`${x},${y}`);
+  for(let x=bx2s;x<=bx2e;x++) for(let y=by2s;y<=by2e;y++) if(safe(x,y)) cells.add(`${x},${y}`);
+  return [...cells].map(k=>{ const [x,y]=k.split(','); return {x:+x,y:+y}; });
+}
+
+function buildPortals() {
+  const mx=Math.floor(COLS/2), my=Math.floor(ROWS/2);
+  return [
+    { a:{x:1,y:1},       b:{x:COLS-2,y:ROWS-2}, color:'#a78bfa' },
+    { a:{x:COLS-2,y:1},  b:{x:1,y:ROWS-2},       color:'#fb923c' },
+    { a:{x:mx,y:0},      b:{x:mx,y:ROWS-1},       color:'#38bdf8' },
+    { a:{x:0,y:my},      b:{x:COLS-1,y:my},       color:'#f472b6' },
+  ];
+}
+
+let currentPortals = [];
+
+let currentTheme = 'neon';
+let bgTexture    = null;
+let bgStars      = [];
+let selectedSpeed = 'normal';
+let foodCount     = 1;
+let musicOn       = true;
+let audioCtx      = null;
+let masterGain    = null;
+let echoChain     = null;
+let musicTimer    = null;
+
+// ── Background textures ───────────────────────────────────────
+function buildBgTexture() {
+  const tc = document.createElement('canvas');
+  tc.width = CANVAS_PX; tc.height = CANVAS_PX;
+  const c = tc.getContext('2d');
+
+  if(currentTheme === 'retro') {
+    for(let y=0;y<CANVAS_PX;y+=2){c.fillStyle='rgba(0,0,0,0.16)';c.fillRect(0,y,CANVAS_PX,1);}
+    for(let i=0;i<700;i++){
+      c.globalAlpha=0.03+Math.random()*0.08;
+      c.fillStyle='#00ff41';
+      c.fillRect(Math.floor(Math.random()*CANVAS_PX),Math.floor(Math.random()*CANVAS_PX),1,1);
+    }
+  } else if(currentTheme==='cyberpunk') {
+    for(let x=0;x<CANVAS_PX;x+=10)
+      for(let y=0;y<CANVAS_PX;y+=10){c.globalAlpha=0.055;c.fillStyle='#00ffff';c.fillRect(x,y,1,1);}
+    for(let i=0;i<22;i++){
+      const y=Math.floor(Math.random()*CANVAS_PX);
+      const x1=Math.floor(Math.random()*300);
+      c.globalAlpha=0.035+Math.random()*0.04;
+      c.strokeStyle='#00ffff';c.lineWidth=1;
+      c.beginPath();c.moveTo(x1,y);c.lineTo(x1+40+Math.random()*90,y);c.stroke();
+    }
+  } else if(currentTheme==='neon') {
+    for(let x=0;x<CANVAS_PX;x+=14)
+      for(let y=0;y<CANVAS_PX;y+=14){c.globalAlpha=0.055;c.fillStyle='#4ade80';c.fillRect(x,y,1,1);}
+  } else if(currentTheme==='cave') {
+    for(let i=0;i<700;i++){
+      const x=Math.floor(Math.random()*CANVAS_PX),y=Math.floor(Math.random()*CANVAS_PX);
+      const s=Math.random()<0.15?2:1;
+      c.globalAlpha=0.07+Math.random()*0.22;
+      c.fillStyle=Math.random()<0.6?'#3d1a06':'#5c2b0a';
+      c.fillRect(x,y,s,s);
+    }
+    for(let i=0;i<12;i++){
+      const x1=Math.random()*CANVAS_PX,y1=Math.random()*CANVAS_PX;
+      c.globalAlpha=0.06+Math.random()*0.09;
+      c.strokeStyle='#1a0a03';c.lineWidth=1;
+      c.beginPath();c.moveTo(x1,y1);c.lineTo(x1+(Math.random()-.5)*70,y1+(Math.random()-.5)*70);c.stroke();
+    }
+  } else if(currentTheme==='ocean') {
+    for(let row=0;row<CANVAS_PX;row+=7){
+      c.beginPath();c.moveTo(0,row);
+      for(let x=0;x<=CANVAS_PX;x+=4) c.lineTo(x,row+Math.sin(x/22+row/15)*1.8);
+      c.strokeStyle='rgba(34,211,238,0.06)';c.lineWidth=1;c.stroke();
+    }
+  } else if(currentTheme==='lava') {
+    for(let i=0;i<240;i++){
+      const x=Math.floor(Math.random()*CANVAS_PX),y=Math.floor(Math.random()*CANVAS_PX);
+      const s=Math.random()<0.12?2:1;
+      c.globalAlpha=0.05+Math.random()*0.1;
+      c.fillStyle=Math.random()<0.5?'#dc2626':'#f97316';
+      c.fillRect(x,y,s,s);
+    }
+    for(let i=0;i<16;i++){
+      const x1=Math.random()*CANVAS_PX,y1=Math.random()*CANVAS_PX;
+      c.globalAlpha=0.05+Math.random()*0.07;
+      c.strokeStyle='#f97316';c.lineWidth=1;
+      c.beginPath();c.moveTo(x1,y1);c.lineTo(x1+(Math.random()-.5)*45,y1+(Math.random()-.5)*45);c.stroke();
+    }
+  }
+  // space: stars are animated per-frame; minimal: no texture
+  c.globalAlpha=1;
+  bgTexture=tc;
+}
+
+function buildStars() {
+  bgStars=[];
+  if(currentTheme!=='space') return;
+  for(let i=0;i<200;i++) bgStars.push({
+    x:Math.floor(Math.random()*CANVAS_PX),
+    y:Math.floor(Math.random()*CANVAS_PX),
+    big:Math.random()<0.07,
+    phase:Math.random()*Math.PI*2,
+    speed:0.5+Math.random()*2,
+    base:0.2+Math.random()*0.6,
+    purple:Math.random()<0.2,
+  });
+}
+
+function drawBgEffects() {
+  if(bgTexture) ctx.drawImage(bgTexture,0,0);
+  if(currentTheme==='space') {
+    const now=performance.now();
+    for(const s of bgStars){
+      ctx.globalAlpha=Math.max(0.05,Math.min(1,s.base+0.3*Math.sin(now/1000*s.speed+s.phase)));
+      ctx.fillStyle=s.purple?'#c4b5fd':'#ffffff';
+      ctx.fillRect(s.x,s.y,s.big?2:1,s.big?2:1);
+    }
+    ctx.globalAlpha=1;
+    const nb=ctx.createRadialGradient(410,70,0,410,70,230);
+    nb.addColorStop(0,'rgba(109,40,217,0.08)'); nb.addColorStop(1,'rgba(109,40,217,0)');
+    ctx.fillStyle=nb; ctx.fillRect(0,0,CANVAS_PX,CANVAS_PX);
+  }
+  if(currentTheme==='cave') {
+    const vg=ctx.createRadialGradient(250,250,90,250,250,360);
+    vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,0.42)');
+    ctx.fillStyle=vg; ctx.fillRect(0,0,CANVAS_PX,CANVAS_PX);
+  }
+}
+
+function drawSegmentPixels(px,py,alpha) {
+  if(CELL<14) return;
+  const dot=Math.max(1,Math.floor(CELL*0.09));
+  const pad=Math.ceil(CELL*0.22);
+  const step=Math.ceil((CELL-pad*2-dot)/2);
+  if(step<2) return;
+  ctx.fillStyle=`rgba(255,255,255,${(alpha*0.13).toFixed(3)})`;
+  for(let tx=pad;tx<CELL-pad;tx+=step)
+    for(let ty=pad;ty<CELL-pad;ty+=step)
+      ctx.fillRect(Math.floor(px+tx),Math.floor(py+ty),dot,dot);
+}
+
+// ── Occupied set ─────────────────────────────────────────────
+function occupiedSet(extras=[]) {
+  const s = new Set();
+  for(const p of G.snake)       s.add(`${p.x},${p.y}`);
+  for(const o of G.obstacles)   s.add(`${o.x},${o.y}`);
+  if(G.food)                     s.add(`${G.food.x},${G.food.y}`);
+  for(const f of G.rottenFoods) s.add(`${f.x},${f.y}`);
+  if(G.fakeFood)                  s.add(`${G.fakeFood.x},${G.fakeFood.y}`);
+  for(const f of G.extraFoods)   s.add(`${f.x},${f.y}`);
+  if(G.mode==='doppelganger')   for(const p of G.dopple) s.add(`${p.x},${p.y}`);
+  for(const e of extras)         s.add(`${e.x},${e.y}`);
+  return s;
+}
+function freeCell(extras=[]) {
+  const blocked = occupiedSet(extras);
+  let pos, tries=0;
+  do { pos={x:Math.floor(Math.random()*COLS),y:Math.floor(Math.random()*ROWS)}; tries++; }
+  while(blocked.has(`${pos.x},${pos.y}`)&&tries<2000);
+  return pos;
+}
+function spawnRotten(n) {
+  const r=[];
+  for(let i=0;i<n;i++) r.push(freeCell(r));
+  return r;
+}
+
+// ── Portal / obstacle ────────────────────────────────────────
+function checkPortal(x,y) {
+  for(const p of currentPortals) {
+    if(p.a.x===x&&p.a.y===y) return p.b;
+    if(p.b.x===x&&p.b.y===y) return p.a;
+  }
+  return null;
+}
+function isObstacle(x,y) { return G.obstacles.some(o=>o.x===x&&o.y===y); }
+
+// ── Hotdog walls ─────────────────────────────────────────────
+function computeHotdogWalls() {
+  const walls = new Set();
+  const snakeSet = new Set(G.snake.map(s=>`${s.x},${s.y}`));
+  for(let i=1;i<G.snake.length;i++) {
+    const {x,y}=G.snake[i];
+    for(const [dx,dy] of [[0,-1],[0,1],[-1,0],[1,0]]) {
+      let nx=x+dx, ny=y+dy;
+      if(G.map==='walled') { if(nx<0||nx>=COLS||ny<0||ny>=ROWS) continue; }
+      else { nx=(nx+COLS)%COLS; ny=(ny+ROWS)%ROWS; }
+      if(!snakeSet.has(`${nx},${ny}`)) walls.add(`${nx},${ny}`);
+    }
+  }
+  return walls;
+}
+
+// ── Doppelganger AI ──────────────────────────────────────────
+function countReachable(sx,sy,blocked) {
+  const visited=new Set([`${sx},${sy}`]);
+  const q=[{x:sx,y:sy}]; let head=0;
+  while(head<q.length&&visited.size<150) {
+    const {x,y}=q[head++];
+    for(const [dx,dy] of [[0,-1],[0,1],[-1,0],[1,0]]) {
+      const nx=(x+dx+COLS)%COLS, ny=(y+dy+ROWS)%ROWS;
+      const k=`${nx},${ny}`;
+      if(!visited.has(k)&&!blocked.has(k)) { visited.add(k); q.push({x:nx,y:ny}); }
+    }
+  }
+  return visited.size;
+}
+
+function doppleNextDir() {
+  const head=G.dopple[0];
+  const d=G.doppleDir;
+  const candidates=[d,{x:-d.y,y:d.x},{x:d.y,y:-d.x},{x:-d.x,y:-d.y}];
+  const blocked=new Set([
+    ...G.dopple.map(s=>`${s.x},${s.y}`),
+    ...G.snake.map(s=>`${s.x},${s.y}`),
+    ...G.obstacles.map(o=>`${o.x},${o.y}`),
+  ]);
+  let best=null, bestScore=-1;
+  for(const dir of candidates) {
+    let nx=head.x+dir.x, ny=head.y+dir.y;
+    if(G.map==='walled'&&(nx<0||nx>=COLS||ny<0||ny>=ROWS)) continue;
+    nx=(nx+COLS)%COLS; ny=(ny+ROWS)%ROWS;
+    if(blocked.has(`${nx},${ny}`)) continue;
+    const score=countReachable(nx,ny,blocked);
+    if(score>bestScore) { bestScore=score; best=dir; }
+  }
+  return best;
+}
+
+function doppleTick() {
+  const nextDir=doppleNextDir();
+  if(!nextDir) { gameOver(pick(DEATHS.doppleWin), true); return; }
+  G.doppleDir=nextDir;
+  const {x,y}=G.dopple[0];
+  let nx=(x+G.doppleDir.x+COLS)%COLS, ny=(y+G.doppleDir.y+ROWS)%ROWS;
+  if(G.map==='walled'&&(x+G.doppleDir.x<0||x+G.doppleDir.x>=COLS||y+G.doppleDir.y<0||y+G.doppleDir.y>=ROWS)) {
+    gameOver(pick(DEATHS.doppleWin), true); return;
+  }
+  G.dopple.unshift({x:nx,y:ny});
+  if(G.doppleGrow>0) { G.doppleGrow--; } else { G.dopple.pop(); }
+}
+
+// ── Vision ───────────────────────────────────────────────────
+function applyVision(now) {
+  if(G.mode!=='rotten'||G.poisonLevel===0) {
+    visionOv.style.opacity='0'; canvas.style.filter=''; return;
+  }
+  const pulse=0.5+0.5*Math.sin(now/500);
+  const base=G.poisonLevel/MAX_HEALTH;
+  visionOv.style.opacity=(base*(0.72+0.28*pulse)).toFixed(3);
+  canvas.style.filter=`blur(${G.poisonLevel*1.4}px) saturate(${Math.max(0.2,1-G.poisonLevel*0.2)})`;
+}
+function clearVision() { visionOv.style.opacity='0'; canvas.style.filter=''; }
+
+// ── HUD ──────────────────────────────────────────────────────
+function updateHUD(now) {
+  scoreEl.textContent=`SCORE: ${G.score}`;
+  if(G.mode==='hunger') {
+    hungerWrap.style.display='flex';
+    G.hungerT=Math.max(0,1-(now-G.hungerStart)/HUNGER_DURATION);
+    hungerFill.style.width=(G.hungerT*100)+'%';
+    hungerFill.style.background=G.hungerT<0.25?'#ef4444':G.hungerT<0.55?'#f59e0b':'var(--accent)';
+  } else { hungerWrap.style.display='none'; }
+
+  if(G.mode==='rotten') {
+    healthWrap.style.display='flex';
+    healthWrap.innerHTML=`<span class="hud-label" style="margin-right:5px">HP</span>`;
+    for(let i=0;i<MAX_HEALTH;i++) {
+      const h=document.createElement('span'); h.className='heart';
+      h.textContent=i<G.health?'❤️':'🖤';
+      healthWrap.appendChild(h);
+    }
+  } else { healthWrap.style.display='none'; }
+
+  if(G.mode==='time') {
+    timerWrap.style.display='flex';
+    G.timeLeft=Math.max(0,TIME_LIMIT-(now-G.timeStart)/1000);
+    timerVal.textContent=Math.ceil(G.timeLeft)+'s';
+  } else { timerWrap.style.display='none'; }
+}
+
+// ── Audio / Music ─────────────────────────────────────────────
+function initAudio() {
+  if(audioCtx) { audioCtx.resume(); return; }
+  try {
+    audioCtx  = new(window.AudioContext||window.webkitAudioContext)();
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = 0.78;
+    masterGain.connect(audioCtx.destination);
+  } catch(e) { musicOn = false; }
+}
+
+function buildEcho(theme) {
+  if(echoChain) {
+    try{ echoChain.delay.disconnect(); echoChain.fb.disconnect(); echoChain.wet.disconnect(); }catch(e){}
+    echoChain = null;
+  }
+  if((theme==='space'||theme==='cave') && audioCtx) {
+    const delay = audioCtx.createDelay(1.0);
+    const fb    = audioCtx.createGain();
+    const wet   = audioCtx.createGain();
+    delay.delayTime.value = theme==='space' ? 0.38 : 0.20;
+    fb.gain.value         = theme==='space' ? 0.44 : 0.28;
+    wet.gain.value        = 0.28;
+    delay.connect(fb); fb.connect(delay);
+    delay.connect(wet); wet.connect(masterGain);
+    echoChain = {delay, fb, wet};
+  }
+}
+
+function scheduleNote(freq, t, dur, type, vol) {
+  if(!freq || !audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const env = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  const atk = 0.015, rel = Math.min(0.07, dur * 0.2);
+  env.gain.setValueAtTime(0, t);
+  env.gain.linearRampToValueAtTime(vol, t + atk);
+  env.gain.setValueAtTime(vol, t + dur - rel);
+  env.gain.linearRampToValueAtTime(0, t + dur);
+  osc.connect(env);
+  env.connect(masterGain);
+  if(echoChain) env.connect(echoChain.delay);
+  osc.start(t); osc.stop(t + dur + 0.02);
+}
+
+function schedulePattern(def, startT) {
+  const beat = 60 / def.bpm;
+  let t = startT;
+  for(const [f, b] of def.lead) {
+    if(f) scheduleNote(f, t, b * beat * 0.85, def.lT, def.lV);
+    t += b * beat;
+  }
+  const leadBeats = def.lead.reduce((s,[,b]) => s + b, 0);
+  const bassBeats = def.bass.reduce((s,[,b]) => s + b, 0);
+  let tb = startT;
+  const loops = Math.ceil(leadBeats / bassBeats);
+  let done = false;
+  for(let i = 0; i < loops && !done; i++) {
+    for(const [f, b] of def.bass) {
+      if(f) scheduleNote(f, tb, b * beat * 0.9, def.bT, def.bV);
+      tb += b * beat;
+      if(tb - startT >= leadBeats * beat) { done = true; break; }
+    }
+  }
+  return startT + leadBeats * beat;
+}
+
+function startMusic() {
+  stopMusic();
+  if(!musicOn || !audioCtx) return;
+  audioCtx.resume();
+  const def = MUSIC_DEFS[currentTheme] || MUSIC_DEFS.neon;
+  buildEcho(currentTheme);
+  const pump = (startT) => {
+    if(!musicOn || !G.running) return;
+    const nextT  = schedulePattern(def, startT);
+    const waitMs = Math.max(50, (nextT - audioCtx.currentTime - 0.15) * 1000);
+    musicTimer   = setTimeout(() => pump(nextT), waitMs);
+  };
+  pump(audioCtx.currentTime + 0.05);
+}
+
+function stopMusic() {
+  if(musicTimer) { clearTimeout(musicTimer); musicTimer = null; }
+}
+
+// ── Start / Game Over ────────────────────────────────────────
+function startGame() {
+  const sz=SIZE_DEFS[G.size];
+  COLS=sz.cols; ROWS=sz.rows; CELL=sz.cell;
+  canvas.width=CANVAS_PX; canvas.height=CANVAS_PX;
+
+  G.obstacles    = G.map==='maze' ? buildMaze() : [];
+  currentPortals = G.map==='portal' ? buildPortals() : [];
+
+  const cx=Math.floor(COLS/2), cy=Math.floor(ROWS/2);
+  G.snake      = [{x:cx,y:cy},{x:cx-1,y:cy},{x:cx-2,y:cy}];
+  G.prevSnake  = G.snake.map(p=>({...p}));
+  G.dir        = {x:1,y:0}; G.nextDir={x:1,y:0};
+  G.score=0; G.health=MAX_HEALTH; G.hungerT=1;
+  G.speed=SPEED_DEFS[selectedSpeed]; G.poisonLevel=0; G.poisonExpiry=0;
+  G.running=true; G.paused=false; G._dead=false; G.interpT=0;
+  G.hotdogWalls=new Set();
+
+  const t0=performance.now();
+  G.hungerStart=t0; G.timeStart=t0; G.lastTick=t0;
+
+  G.food        = freeCell();
+  G.fakeFood    = G.mode==='hallucination' ? freeCell([G.food]) : null;
+  G.extraFoods  = [];
+  for(let i=1; i<foodCount; i++) G.extraFoods.push(freeCell(G.extraFoods));
+  G.rottenFoods = G.mode==='rotten' ? spawnRotten(ROTTEN_COUNT) : [];
+
+  if(G.mode==='doppelganger') {
+    const dx=COLS-4, dy=2;
+    G.dopple    =[{x:dx,y:dy},{x:dx+1,y:dy},{x:dx+2,y:dy}];
+    G.prevDopple=G.dopple.map(p=>({...p}));
+    G.doppleDir ={x:-1,y:0};
+    G.doppleGrow=0;
+  } else { G.dopple=[]; G.prevDopple=[]; }
+
+  clearVision();
+  buildBgTexture();
+  buildStars();
+  updateHUD(t0);
+  deathMsg.style.display='none';
+  overlay.style.display='none'; ovScore.style.display='none';
+  startBtn.textContent='START';
+  if(G.animFrame) cancelAnimationFrame(G.animFrame);
+  initAudio();
+  if(musicOn) startMusic();
+  G.animFrame=requestAnimationFrame(loop);
+}
+
+function gameOver(flavour, isWin=false) {
+  if(G._dead) return;
+  G._dead=true; G.running=false;
+  stopMusic();
+  cancelAnimationFrame(G.animFrame);
+  ovTitle.textContent = isWin ? 'YOU WIN' : 'GAME OVER';
+  deathMsg.textContent = flavour || pick(DEATHS.default);
+  deathMsg.style.display='block';
+  ovScore.textContent=`SCORE: ${G.score}`;
+  ovScore.style.display='block';
+  startBtn.textContent='PLAY AGAIN';
+  overlay.style.display='flex';
+  canvasWrap.classList.remove('shake');
+  void canvasWrap.offsetWidth;
+  canvasWrap.classList.add('shake');
+}
+
+// ── Game Loop ────────────────────────────────────────────────
+function loop(now) {
+  if(!G.running) return;
+  G.animFrame=requestAnimationFrame(loop);
+  if(G.paused) return;
+
+  updateHUD(now);
+  if(G.mode==='hunger'&&G.hungerT<=0) { gameOver(pick(DEATHS.hunger)); return; }
+  if(G.mode==='time'&&G.timeLeft<=0)  { gameOver(pick(DEATHS.time)); return; }
+
+  if(G.mode==='rotten'&&G.poisonLevel>0&&now>=G.poisonExpiry) {
+    G.poisonLevel=Math.max(0,G.poisonLevel-1);
+    if(G.poisonLevel>0) G.poisonExpiry=now+POISON_DURATION;
+  }
+  applyVision(now);
+
+  const elapsed=now-G.lastTick;
+  if(elapsed>=G.speed) {
+    G.prevSnake=G.snake.map(p=>({...p}));
+    if(G.mode==='doppelganger') G.prevDopple=G.dopple.map(p=>({...p}));
+    G.interpT=0;
+    tick(now);
+    G.lastTick=now;
+  } else {
+    G.interpT=elapsed/G.speed;
+  }
+  render(G.smooth?G.interpT:1);
+}
+
+// ── Tick ─────────────────────────────────────────────────────
+function tick(now) {
+  G.dir={...G.nextDir};
+
+  if(G.mode==='hotdog') G.hotdogWalls=computeHotdogWalls();
+
+  let nx=G.snake[0].x+G.dir.x, ny=G.snake[0].y+G.dir.y;
+
+  const walled=G.map==='walled';
+  const portal=G.map==='portal';
+
+  if(walled&&(nx<0||nx>=COLS||ny<0||ny>=ROWS)) { gameOver(pick(DEATHS.wall)); return; }
+  else if(portal) {
+    const tp=checkPortal(nx,ny);
+    if(tp) { nx=tp.x; ny=tp.y; }
+    else   { nx=(nx+COLS)%COLS; ny=(ny+ROWS)%ROWS; }
+  } else { nx=(nx+COLS)%COLS; ny=(ny+ROWS)%ROWS; }
+
+  if(isObstacle(nx,ny)) { gameOver(pick(DEATHS.obstacle)); return; }
+  if(G.mode==='hotdog'&&G.hotdogWalls.has(`${nx},${ny}`)) { gameOver(pick(DEATHS.hotdog)); return; }
+  if(G.snake.some(s=>s.x===nx&&s.y===ny)) { gameOver(pick(DEATHS.self)); return; }
+  if(G.mode==='doppelganger'&&G.dopple.some(s=>s.x===nx&&s.y===ny)) { gameOver(pick(DEATHS.doppelganger)); return; }
+
+  G.snake.unshift({x:nx,y:ny});
+
+  let ate=false;
+  if(G.food&&nx===G.food.x&&ny===G.food.y) {
+    if(G.mode==='hallucination') {
+      G.score++;
+      G.food=freeCell([G.fakeFood]);
+      G.fakeFood=freeCell([G.food]);
+    } else {
+      G.score++;
+      G.food=freeCell();
+    }
+    ate=true;
+    if(G.score>=WIN_SCORES[G.size]) { gameOver(pick(DEATHS.win), true); return; }
+    if(G.mode==='hunger') G.hungerStart=now;
+    if(G.mode==='doppelganger') G.doppleGrow++;
+  } else if(G.mode==='hallucination'&&G.fakeFood&&nx===G.fakeFood.x&&ny===G.fakeFood.y) {
+    G.food=freeCell();
+    G.fakeFood=freeCell([G.food]);
+  }
+
+  if(!ate) {
+    for(let i=0; i<G.extraFoods.length; i++) {
+      if(G.extraFoods[i].x===nx && G.extraFoods[i].y===ny) {
+        G.extraFoods[i]=freeCell();
+        G.score++;
+        if(G.score>=WIN_SCORES[G.size]) { gameOver(pick(DEATHS.win), true); return; }
+        ate=true;
+        if(G.mode==='hunger') G.hungerStart=now;
+        if(G.mode==='doppelganger') G.doppleGrow++;
+        break;
+      }
+    }
+  }
+
+  if(G.mode==='rotten') {
+    const ri=G.rottenFoods.findIndex(f=>f.x===nx&&f.y===ny);
+    if(ri!==-1) {
+      G.rottenFoods.splice(ri,1);
+      G.rottenFoods.push(freeCell());
+      G.health--;
+      G.poisonLevel=Math.min(MAX_HEALTH,G.poisonLevel+1);
+      G.poisonExpiry=now+POISON_DURATION;
+      if(G.health<=0) { gameOver(pick(DEATHS.poisoned)); return; }
+    }
+  }
+
+  if(!ate) G.snake.pop();
+
+  if(G.mode==='doppelganger') doppleTick();
+}
+
+// ── Render ───────────────────────────────────────────────────
+function render(t) {
+  ctx.clearRect(0,0,CANVAS_PX,CANVAS_PX);
+  ctx.fillStyle=G.colors.bg;
+  ctx.fillRect(0,0,CANVAS_PX,CANVAS_PX);
+  drawBgEffects();
+
+  if(G.showGrid) {
+    ctx.strokeStyle='rgba(255,255,255,0.04)';
+    ctx.lineWidth=0.5;
+    for(let x=0;x<=COLS;x++) {
+      ctx.beginPath(); ctx.moveTo(x*CELL,0); ctx.lineTo(x*CELL,CANVAS_PX); ctx.stroke();
+    }
+    for(let y=0;y<=ROWS;y++) {
+      ctx.beginPath(); ctx.moveTo(0,y*CELL); ctx.lineTo(CANVAS_PX,y*CELL); ctx.stroke();
+    }
+  }
+
+  ctx.fillStyle='rgba(255,255,255,0.12)';
+  for(const o of G.obstacles) {
+    roundRect(ctx,o.x*CELL+1,o.y*CELL+1,CELL-2,CELL-2,3); ctx.fill();
+  }
+
+  if(G.mode==='hotdog'&&G.hotdogWalls.size>0) {
+    for(const key of G.hotdogWalls) {
+      const [x,y]=key.split(',');
+      ctx.fillStyle='rgba(239,68,68,0.18)';
+      ctx.fillRect(+x*CELL,+y*CELL,CELL,CELL);
+      ctx.strokeStyle='rgba(239,68,68,0.38)';
+      ctx.lineWidth=0.5;
+      ctx.strokeRect(+x*CELL+0.5,+y*CELL+0.5,CELL-1,CELL-1);
+    }
+    ctx.lineWidth=1;
+  }
+
+  if(G.map==='portal') {
+    const now=performance.now();
+    for(const p of currentPortals) {
+      drawPortal(p.a.x,p.a.y,p.color,now);
+      drawPortal(p.b.x,p.b.y,p.color,now);
+    }
+  }
+
+  if(G.food) drawFood(G.food.x,G.food.y,G.colors.food);
+  if(G.mode==='hallucination'&&G.fakeFood) drawFood(G.fakeFood.x,G.fakeFood.y,G.colors.food);
+  for(const f of G.extraFoods) drawFood(f.x,f.y,G.colors.food);
+  for(const f of G.rottenFoods) drawRottenFood(f.x,f.y);
+
+  if(G.mode==='doppelganger'&&G.dopple.length) drawDoppelSnake(t);
+  drawSnake(t);
+}
+
+function interpPos(cur,prev,t) {
+  if(!prev) return {x:cur.x,y:cur.y};
+  const dx=Math.abs(cur.x-prev.x), dy=Math.abs(cur.y-prev.y);
+  if(dx>1||dy>1) return {x:cur.x,y:cur.y};
+  return {x:lerp(prev.x,cur.x,t),y:lerp(prev.y,cur.y,t)};
+}
+
+function drawSnake(t) {
+  const n=G.snake.length;
+  const rgb=hexToRgb(G.colors.snake);
+  for(let i=n-1;i>=0;i--) {
+    const pos=G.smooth?interpPos(G.snake[i],G.prevSnake[i],t):G.snake[i];
+    const px=pos.x*CELL, py=pos.y*CELL;
+    const isHead=i===0;
+    const alpha=1-(i/n)*0.45;
+    ctx.fillStyle=isHead?G.colors.head:`rgba(${rgb.r},${rgb.g},${rgb.b},${alpha.toFixed(2)})`;
+    roundRect(ctx,px+1,py+1,CELL-2,CELL-2,isHead?5:3); ctx.fill();
+    if(!isHead) drawSegmentPixels(px,py,alpha);
+    if(isHead) drawEyes(px,py,G.dir,G.colors.bg);
+  }
+}
+
+function drawDoppelSnake(t) {
+  const n=G.dopple.length;
+  for(let i=n-1;i>=0;i--) {
+    const pos=G.smooth?interpPos(G.dopple[i],G.prevDopple[i],t):G.dopple[i];
+    const px=pos.x*CELL, py=pos.y*CELL;
+    const isHead=i===0;
+    const alpha=1-(i/n)*0.45;
+    ctx.fillStyle=isHead?'#fb923c':`rgba(234,88,12,${alpha.toFixed(2)})`;
+    roundRect(ctx,px+1,py+1,CELL-2,CELL-2,isHead?5:3); ctx.fill();
+    if(!isHead) drawSegmentPixels(px,py,alpha);
+    if(isHead) drawEyes(px,py,G.doppleDir,'#1a0800');
+  }
+}
+
+function drawEyes(px,py,dir,col) {
+  ctx.fillStyle=col;
+  let e1x,e1y,e2x,e2y;
+  if     (dir.x=== 1){e1x=px+CELL*0.68;e1y=py+CELL*0.22;e2x=px+CELL*0.68;e2y=py+CELL*0.62;}
+  else if(dir.x===-1){e1x=px+CELL*0.32;e1y=py+CELL*0.22;e2x=px+CELL*0.32;e2y=py+CELL*0.62;}
+  else if(dir.y=== 1){e1x=px+CELL*0.22;e1y=py+CELL*0.68;e2x=px+CELL*0.62;e2y=py+CELL*0.68;}
+  else               {e1x=px+CELL*0.22;e1y=py+CELL*0.32;e2x=px+CELL*0.62;e2y=py+CELL*0.32;}
+  const r=Math.max(1.2,CELL*0.13);
+  ctx.beginPath(); ctx.arc(e1x,e1y,r,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(e2x,e2y,r,0,Math.PI*2); ctx.fill();
+}
+
+function drawFood(gx,gy,color) {
+  const baseCx=gx*CELL+CELL/2, baseCy=gy*CELL+CELL/2;
+  const r=CELL/2-Math.max(1,CELL*0.15);
+  const now=performance.now();
+
+  // Ghost mode: food is barely visible, pulsing faint ring
+  if(G.mode==='ghost') {
+    const pulse=0.5+0.5*Math.sin(now/700);
+    ctx.globalAlpha=0.06+0.07*pulse;
+    ctx.shadowColor=color; ctx.shadowBlur=14;
+    ctx.fillStyle=color;
+    ctx.beginPath(); ctx.arc(baseCx,baseCy,r,0,Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0;
+    ctx.globalAlpha=0.1+0.1*pulse;
+    ctx.strokeStyle=color; ctx.lineWidth=1;
+    ctx.setLineDash([2,4]);
+    ctx.beginPath(); ctx.arc(baseCx,baseCy,r+2,0,Math.PI*2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha=1;
+    return;
+  }
+
+  // Normal draw
+  let cx=baseCx, cy=baseCy;
+  ctx.shadowColor=color; ctx.shadowBlur=10;
+  ctx.fillStyle=color;
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.fillStyle='rgba(255,255,255,0.35)';
+  ctx.beginPath(); ctx.arc(cx-r*0.3,cy-r*0.3,r*0.32,0,Math.PI*2); ctx.fill();
+}
+
+function drawRottenFood(gx,gy) {
+  const cx=gx*CELL+CELL/2, cy=gy*CELL+CELL/2, r=CELL/2-Math.max(1,CELL*0.15);
+  ctx.shadowColor='#451a03'; ctx.shadowBlur=8;
+  ctx.fillStyle='#78350f'; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#92400e'; ctx.beginPath(); ctx.arc(cx,cy,r*0.7,0,Math.PI*2); ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.strokeStyle='#fbbf24'; ctx.lineWidth=Math.max(1,CELL*0.09);
+  const d=r*0.45;
+  ctx.beginPath(); ctx.moveTo(cx-d,cy-d); ctx.lineTo(cx+d,cy+d);
+  ctx.moveTo(cx+d,cy-d); ctx.lineTo(cx-d,cy+d); ctx.stroke();
+  ctx.lineWidth=1;
+}
+
+function drawPortal(gx,gy,color,now) {
+  const cx=gx*CELL+CELL/2, cy=gy*CELL+CELL/2;
+  const pulse=0.6+0.4*Math.sin(now/420);
+  ctx.shadowColor=color; ctx.shadowBlur=12*pulse;
+  ctx.strokeStyle=color; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(cx,cy,CELL/2-2,0,Math.PI*2); ctx.stroke();
+  ctx.fillStyle=color+'28';
+  ctx.beginPath(); ctx.arc(cx,cy,CELL/2-2,0,Math.PI*2); ctx.fill();
+  ctx.shadowBlur=0; ctx.lineWidth=1;
+}
+
+// ── Input ────────────────────────────────────────────────────
+const DIRS={
+  ArrowUp:{x:0,y:-1},w:{x:0,y:-1},W:{x:0,y:-1},
+  ArrowDown:{x:0,y:1},s:{x:0,y:1},S:{x:0,y:1},
+  ArrowLeft:{x:-1,y:0},a:{x:-1,y:0},A:{x:-1,y:0},
+  ArrowRight:{x:1,y:0},d:{x:1,y:0},D:{x:1,y:0},
+};
+document.addEventListener('keydown',e=>{
+  const d=DIRS[e.key];
+  if(d) {
+    e.preventDefault();
+    if(d.x!==-G.dir.x||d.y!==-G.dir.y) G.nextDir=d;
+    return;
+  }
+  if(e.key===' ') {
+    e.preventDefault();
+    if(!G.running) return;
+    G.paused=!G.paused;
+    if(!G.paused) G.lastTick=performance.now();
+  }
+});
+
+// ── UI ───────────────────────────────────────────────────────
+startBtn.addEventListener('click',startGame);
+
+document.querySelectorAll('[data-mode]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    if(G.running) return;
+    document.querySelectorAll('[data-mode]').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    G.mode=btn.dataset.mode;
+    modeHint.textContent=MODE_HINTS[G.mode];
+  });
+});
+
+document.querySelectorAll('[data-map]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    if(G.running) return;
+    document.querySelectorAll('[data-map]').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    G.map=btn.dataset.map;
+  });
+});
+
+document.querySelectorAll('[data-size]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    if(G.running) return;
+    document.querySelectorAll('[data-size]').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    G.size=btn.dataset.size;
+  });
+});
+
+document.querySelectorAll('[data-spd]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    if(G.running) return;
+    document.querySelectorAll('[data-spd]').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedSpeed=btn.dataset.spd;
+  });
+});
+
+document.querySelectorAll('[data-theme]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('[data-theme]').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const t=btn.dataset.theme;
+    document.body.className=t==='neon'?'':`t-${t}`;
+    G.colors={...THEME_COLORS[t]};
+    currentTheme=t;
+    buildBgTexture();
+    buildStars();
+    if(G.running && musicOn) startMusic();
+    document.getElementById('c-snake').value=G.colors.snake;
+    document.getElementById('c-head').value=G.colors.head;
+    document.getElementById('c-food').value=G.colors.food;
+    document.getElementById('c-bg').value=G.colors.bg;
+    if(!G.running) render(1);
+  });
+});
+
+document.getElementById('c-snake').addEventListener('input',e=>{G.colors.snake=e.target.value;if(!G.running)render(1);});
+document.getElementById('c-head').addEventListener('input', e=>{G.colors.head=e.target.value; if(!G.running)render(1);});
+document.getElementById('c-food').addEventListener('input', e=>{G.colors.food=e.target.value; if(!G.running)render(1);});
+document.getElementById('c-bg').addEventListener('input',   e=>{G.colors.bg=e.target.value;   if(!G.running)render(1);});
+document.getElementById('opt-grid').addEventListener('change',  e=>{G.showGrid=e.target.checked;if(!G.running)render(1);});
+document.getElementById('opt-smooth').addEventListener('change',e=>{G.smooth=e.target.checked;});
+
+const fruitSlider = document.getElementById('fruit-count');
+const fruitLabel  = document.getElementById('fruit-count-val');
+fruitSlider.addEventListener('input', e => {
+  foodCount = +e.target.value;
+  fruitLabel.textContent = foodCount;
+});
+
+document.getElementById('opt-music').addEventListener('change', e => {
+  musicOn = e.target.checked;
+  if(!musicOn) stopMusic();
+  else if(G.running) { initAudio(); startMusic(); }
+});
+
+// ── Init ─────────────────────────────────────────────────────
+G.colors={...THEME_COLORS.neon};
+buildBgTexture();
+buildStars();
+render(1);
+</script>
+</body>
+</html>
